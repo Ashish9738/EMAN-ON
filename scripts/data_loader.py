@@ -1,63 +1,60 @@
-import os
-import numpy as np
-from PIL import Image, ImageChops, ImageEnhance
-from keras.utils import to_categorical
 from sklearn.model_selection import train_test_split
-from config import IMAGE_DIR, IMAGE_SIZE
+from config.config import IMAGE_DIR
+from keras.utils import to_categorical
+import numpy as np
+import logging
+from .image_processing import ImageProcessor
 
-def convert_to_ela_image(image_path, quality=90):
-    """
-    Converts image to ELA format
-    """
-    original_image = Image.open(image_path).convert('RGB')
-    temp_filename = 'temp_file_name.jpg'
-    ela_filename = 'temp_ela.png'
-
-    original_image.save(temp_filename, 'JPEG', quality=quality)
-    temp_image = Image.open(temp_filename)
-
-    ela_image = ImageChops.difference(original_image, temp_image)
-    extrema = ela_image.getextrema()
+class DataLoader:
+    def __init__(self, image_size=None):
+        self.image_size = image_size or IMAGE_SIZE
+        self.image_processor = ImageProcessor()
+        self._setup_logging()
     
-    max_diff = max([ex[1] for ex in extrema]) if extrema else 1
-    scale = 255.0 / max_diff if max_diff > 0 else 1
+    def _setup_logging(self):
+        self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(logging.INFO)
+    
+    def prepare_image(self, image_path):
+        """
+        Process single image with error handling and logging
+        """
+        try:
+            ela_image = self.image_processor.convert_to_ela_image(image_path)
+            processed_image = np.array(ela_image.resize(self.image_size))
+            return processed_image / 255.0
+        except Exception as e:
+            self.logger.error(f"Error processing {image_path}: {str(e)}")
+            return None
 
-    ela_image = ImageEnhance.Brightness(ela_image).enhance(scale)
-    return ela_image
-
-def prepare_image(image_path):
-    """
-    Prepares the image for training
-    """
-    return np.array(convert_to_ela_image(image_path).resize(IMAGE_SIZE)).flatten() / 255.0
-
-def load_data():
-    """
-    Load image data and labels[1]
-    """
-    X, Y = [], []
-
-    path = os.path.join(IMAGE_DIR, 'Au/')
-    for dirname, _, filenames in os.walk(path):
-        for filename in filenames:
-            if filename.endswith(('jpg', 'png')):
-                full_path = os.path.join(dirname, filename)
-                X.append(prepare_image(full_path))
-                Y.append(1)  
-
-    """
-    Load image data and labels[0]
-    """
-    path = os.path.join(IMAGE_DIR, 'Tp/')
-    for dirname, _, filenames in os.walk(path):
-        for filename in filenames:
-            if filename.endswith(('jpg', 'png')):
-                full_path = os.path.join(dirname, filename)
-                X.append(prepare_image(full_path))
-                Y.append(0) 
-
-    X = np.array(X)
-    Y = to_categorical(Y, 2) 
-    X = X.reshape(-1, *IMAGE_SIZE, 3)
-
-    return train_test_split(X, Y, test_size=0.2, random_state=5)
+    def load_data(self):
+        """
+        Load and process all images with progress tracking
+        """
+        X, Y = [], []
+        
+        # Process authentic images
+        auth_path = os.path.join(IMAGE_DIR, 'Au')
+        self.logger.info("Processing authentic images...")
+        for filename in os.listdir(auth_path):
+            if filename.lower().endswith(('jpg', 'jpeg', 'png')):
+                image = self.prepare_image(os.path.join(auth_path, filename))
+                if image is not None:
+                    X.append(image)
+                    Y.append(1)
+        
+        # Process tampered images
+        tamp_path = os.path.join(IMAGE_DIR, 'Tp')
+        self.logger.info("Processing tampered images...")
+        for filename in os.listdir(tamp_path):
+            if filename.lower().endswith(('jpg', 'jpeg', 'png')):
+                image = self.prepare_image(os.path.join(tamp_path, filename))
+                if image is not None:
+                    X.append(image)
+                    Y.append(0)
+        
+        X = np.array(X)
+        Y = to_categorical(np.array(Y), 2)
+        
+        self.logger.info(f"Processed {len(X)} images successfully")
+        return train_test_split(X, Y, test_size=VALIDATION_SPLIT, random_state=RANDOM_SEED)
