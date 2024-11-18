@@ -8,7 +8,7 @@ IMAGE_DIR = os.path.join(DATA_DIR, 'raw')
 PROCESSED_DATA_DIR = os.path.join(DATA_DIR, 'processed')
 
 # Model configuration
-IMAGE_SIZE = (128, 128)  # Adjust based on your needs
+IMAGE_SIZE = (128, 128) 
 EPOCHS = 50
 VALIDATION_SPLIT = 0.2
 RANDOM_SEED = 42
