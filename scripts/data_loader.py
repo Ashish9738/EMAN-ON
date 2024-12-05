@@ -3,11 +3,13 @@ from config.config import IMAGE_DIR
 from keras.utils import to_categorical
 import numpy as np
 import logging
+import os
+
 from .image_processing import ImageProcessor
 
 class DataLoader:
     def __init__(self, image_size=None):
-        self.image_size = image_size or IMAGE_SIZE
+        self.image_size = image_size
         self.image_processor = ImageProcessor()
         self._setup_logging()
     
