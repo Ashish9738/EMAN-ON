@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routes import video_routes, image_routes
+from app.routes import video_routes, image_routes, image_ht
 
 app = FastAPI()
 
@@ -15,3 +15,4 @@ app.add_middleware(
 
 app.include_router(video_routes.router, prefix="/video")
 app.include_router(image_routes.router, prefix="/image")
+app.include_router(image_ht.router, prefix="/image-ht",)
