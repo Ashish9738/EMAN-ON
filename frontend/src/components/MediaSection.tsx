@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Upload, Loader2 } from "lucide-react";
@@ -9,9 +9,24 @@ const MediaSection: React.FC = () => {
   const [fileName, setFileName] = useState<string | null>(null);
   const [predictionResult, setPredictionResult] = useState<string | undefined>(undefined);
   const [confidence, setConfidence] = useState<string | undefined>(undefined);
-  const [_, setFramePredictions] = useState<number[]>([]);
+  const [framePredictions, setFramePredictions] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Cleanup function for preview URLs
+  useEffect(() => {
+    return () => {
+      if (preview) {
+        URL.revokeObjectURL(preview);
+      }
+      if (videoPreviewUrl) {
+        URL.revokeObjectURL(videoPreviewUrl);
+      }
+    };
+  }, [preview, videoPreviewUrl]);
 
   const handleImageButtonClick = () => {
     setActiveUpload("image");
@@ -24,54 +39,108 @@ const MediaSection: React.FC = () => {
   };
 
   const resetStates = () => {
+    if (preview) {
+      URL.revokeObjectURL(preview);
+    }
+    if (videoPreviewUrl) {
+      URL.revokeObjectURL(videoPreviewUrl);
+    }
     setFileName(null);
     setPredictionResult(undefined);
     setConfidence(undefined);
     setError(null);
     setFramePredictions([]);
+    setPreview(null);
+    setVideoPreviewUrl(null);
+    if (videoRef.current) {
+      videoRef.current.src = "";
+      videoRef.current.load();
+    }
   };
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       setFileName(file.name);
       setError(null);
+
+      // Cleanup previous previews
+      if (preview) {
+        URL.revokeObjectURL(preview);
+      }
+      if (videoPreviewUrl) {
+        URL.revokeObjectURL(videoPreviewUrl);
+      }
+
+      if (activeUpload === "image") {
+        try {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            setPreview(e.target?.result as string);
+          };
+          reader.readAsDataURL(file);
+        } catch (error) {
+          console.error("Error creating image preview:", error);
+          setError("Failed to create image preview");
+        }
+      } else if (activeUpload === "video") {
+        try {
+          const url = URL.createObjectURL(file);
+          setVideoPreviewUrl(url);
+          if (videoRef.current) {
+            videoRef.current.src = url;
+            videoRef.current.load();
+          }
+        } catch (error) {
+          console.error("Error creating video preview:", error);
+          setError("Failed to create video preview");
+        }
+      }
     }
   };
 
+  
   const handleImageUpload = async () => {
     if (!fileName) {
       setError("Please select an image file to upload.");
       return;
     }
-
+  
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
-
+  
     if (fileInput?.files) {
       const file = fileInput.files[0];
-      
       const allowedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-      
+  
       if (!allowedImageTypes.includes(file.type)) {
         setError("Invalid image file type. Please upload a JPEG, PNG, GIF, or WebP image.");
         return;
       }
-
+  
       const formData = new FormData();
       formData.append("file", file);
-
+  
       try {
         setIsLoading(true);
         setError(null);
-
-        const response = await axios.post("http://localhost:8000/image/predict-image", formData, {
+  
+        const response = await axios.post("http://localhost:8000/image-ht/predict", formData, {
           headers: {
             "Content-Type": "multipart/form-data",
           },
         });
-
-        setPredictionResult(response.data.predicted_class);
-        setConfidence(`${response.data.real_confidence.toFixed(2)}%`);
+  
+        console.log("API Response:", response.data);
+  
+        const prediction = response.data.prediction; 
+        const confidence = response.data.confidence; 
+        
+        console.log("Prediction:", prediction);
+        console.log("Confidence:", confidence);
+        
+        setPredictionResult(prediction.toUpperCase()); 
+        setConfidence(confidence);
+  
       } catch (error) {
         console.error("Error uploading image:", error);
         setError("Failed to upload and analyze the image. Please try again.");
@@ -95,9 +164,8 @@ const MediaSection: React.FC = () => {
 
     if (fileInput?.files) {
       const file = fileInput.files[0];
-      
       const allowedVideoTypes = ['video/mp4', 'video/mpeg', 'video/quicktime', 'video/x-msvideo'];
-      
+
       if (!allowedVideoTypes.includes(file.type)) {
         setError("Invalid video file type. Please upload MP4, MPEG, QuickTime, or AVI video.");
         return;
@@ -235,20 +303,44 @@ const MediaSection: React.FC = () => {
                   Cancel
                 </button>
               </div>
+
+              {/* Preview Section */}
+              {(preview || videoPreviewUrl) && (
+                <div className="mt-6">
+                  <h4 className="text-lg font-semibold mb-3">Preview:</h4>
+                  <div className="flex justify-center">
+                    {activeUpload === "image" && preview && (
+                      <img 
+                        src={preview} 
+                        alt="Selected image preview" 
+                        className="max-w-full h-auto max-h-96 rounded-lg shadow-md"
+                      />
+                    )}
+                    {activeUpload === "video" && videoPreviewUrl && (
+                      <video 
+                        ref={videoRef}
+                        controls
+                        controlsList="nodownload"
+                        className="max-w-full h-auto max-h-96 rounded-lg shadow-md"
+                      >
+                        <source src={videoPreviewUrl} type="video/mp4" />
+                        Your browser does not support the video tag.
+                      </video>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
 
         {predictionResult && (
-          <div className="mt-6 text-center">
-            <p className="font-bold text-xl">Prediction Result:</p>
-            <p>Prediction: {predictionResult} | Confidence: {confidence}</p>
-            {/* {activeUpload === "video" && framePredictions.length > 0 && (
-              <div>
-                <h4>Frame Predictions:</h4>
-                <pre>{JSON.stringify(framePredictions, null, 2)}</pre>
-              </div>
-            )} */}
+          <div className="mt-6 bg-white p-6 rounded-lg shadow-lg">
+            <p className="font-bold text-xl mb-2">Prediction Result:</p>
+            <p className="text-lg">
+              Prediction: <span className="font-semibold">{predictionResult}</span> | 
+              Confidence: <span className="font-semibold">{confidence}</span>
+            </p>
           </div>
         )}
       </div>

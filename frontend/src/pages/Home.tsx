@@ -11,8 +11,8 @@ const Home: React.FC = () => {
       <Navbar />
       <main className="flex-grow mt-16">
         <HeroSection />
-        <WhyDetectSection />
         <MediaSection />
+        <WhyDetectSection />
       </main>
       <Footer />
     </div>
