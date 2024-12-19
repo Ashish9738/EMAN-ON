@@ -4,10 +4,10 @@ from tempfile import NamedTemporaryFile
 import os
 from tensorflow.keras.models import load_model
 
-from ..models.image_processor import predict_single_image
+from ..service.image_processor import predict_single_image
 
 # Path to the pre-trained model
-MODEL_PATH = "/home/ash/Documents/EMAN-ON/models/model.keras"
+MODEL_PATH = "/home/ash/Documents/EMAN-ON/models/image.keras"
 
 # Initialize the model
 try:
